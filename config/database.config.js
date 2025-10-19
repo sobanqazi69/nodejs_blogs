@@ -4,7 +4,7 @@
  */
 
 // Database type: 'sqlite' or 'mysql'
-export const DATABASE_TYPE = 'mysql'; // Using MySQL with XAMPP
+export const DATABASE_TYPE = 'sqlite'; // Using SQLite for Railway deployment
 
 // SQLite configuration (default)
 export const sqliteConfig = {
