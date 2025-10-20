@@ -4,7 +4,7 @@
  */
 
 // Database type: 'sqlite' or 'mysql'
-export const DATABASE_TYPE = 'sqlite'; // Using SQLite for Railway deployment
+export const DATABASE_TYPE = 'mysql'; // Using MySQL for cPanel hosting
 
 // SQLite configuration (default)
 export const sqliteConfig = {
@@ -12,13 +12,13 @@ export const sqliteConfig = {
     path: './news.db'
 };
 
-// MySQL configuration (for XAMPP) - Using your existing 'blog' database
+// MySQL configuration (for cPanel hosting)
 export const mysqlConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '', // Default XAMPP password is empty
-    database: 'blog', // Using your existing database
-    port: 3306
+    host: 'firewalls247.com', // Your cPanel database host
+    user: 'infors3g', // Your cPanel username
+    password: 'wjjSLu5g$pQf3f&tmXcjKdwg765tq2', // Your cPanel password
+    database: 'infors3g_testst', // Your database name
+    port: 3306 // Working port
 };
 
 // Get current database configuration

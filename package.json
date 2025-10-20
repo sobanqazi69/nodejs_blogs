@@ -4,10 +4,9 @@
   "main": "src/app.js",
   "type": "module",
   "scripts": {
-    "start": "node src/railway-app.js",
+    "start": "node start-24-7.js",
     "scrape": "node src/app.js",
     "continuous": "node src/continuous-app.js",
-    "railway": "node src/railway-app.js",
     "dev": "node --watch src/continuous-app.js",
     "db:init": "node src/database-cli.js init",
     "db:stats": "node src/database-cli.js stats",
@@ -22,8 +21,7 @@
   "dependencies": {
     "rss-parser": "^3.13.0",
     "sqlite3": "^5.1.6",
-    "mysql2": "^3.6.5",
-    "express": "^4.18.2"
+    "mysql2": "^3.6.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.0"

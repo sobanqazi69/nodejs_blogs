@@ -3,13 +3,13 @@
  */
 
 export const continuousConfig = {
-    // Scraping interval in minutes
-    scrapeIntervalMinutes: 5,
+    // Scraping interval in minutes (optimized for real-time news)
+    scrapeIntervalMinutes: 1, // Check every minute for new articles
     
     // Maximum articles to process per scrape (0 = no limit)
     maxArticlesPerScrape: 0,
     
-    // Enable/disable specific news sources
+    // Enable/disable specific news sources (working sources only)
     enabledSources: [
         'Al Jazeera',
         'BBC News', 
@@ -17,8 +17,16 @@ export const continuousConfig = {
         'BBC Business',
         'BBC Technology',
         'Dawn News',
+        'Geo News',
+        'Geo Pakistan',
+        'Geo World',
+        'Geo Business',
+        'Geo Sports',
+        'Geo Technology',
         'CNN Top Stories',
-        'The Guardian'
+        'The Guardian',
+        'NPR News',
+        'PBS News'
     ],
     
     // Enable/disable specific categories
@@ -59,15 +67,33 @@ export const continuousConfig = {
         maxDuplicateChecks: 3
     },
     
-    // Error handling
+    // Time-based filtering for real-time news
+    timeFiltering: {
+        // Only fetch articles published within last X minutes
+        maxArticleAgeMinutes: 5,
+        
+        // Enable time-based filtering
+        enabled: true,
+        
+        // Fallback to all articles if time filtering fails
+        fallbackToAll: false
+    },
+    
+    // Error handling (optimized for 24/7)
     errorHandling: {
-        // Maximum consecutive errors before stopping
-        maxConsecutiveErrors: 5,
+        // Maximum consecutive errors before stopping (increased for 24/7)
+        maxConsecutiveErrors: 10,
         
         // Retry delay in minutes after error
-        retryDelayMinutes: 2,
+        retryDelayMinutes: 1,
         
         // Continue scraping on individual source errors
-        continueOnSourceError: true
+        continueOnSourceError: true,
+        
+        // Auto-restart on critical errors
+        autoRestart: true,
+        
+        // Maximum restart attempts per hour
+        maxRestartsPerHour: 3
     }
 };

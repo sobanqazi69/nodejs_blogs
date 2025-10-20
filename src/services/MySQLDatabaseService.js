@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import { getDatabaseConfig } from '../../config/database.config.js';
 import { NewsArticle } from '../models/NewsArticle.js';
 
 /**
@@ -7,13 +8,7 @@ import { NewsArticle } from '../models/NewsArticle.js';
 export class MySQLDatabaseService {
     constructor() {
         this.connection = null;
-        this.config = {
-            host: 'localhost',
-            user: 'root',
-            password: '', // Default XAMPP password is empty
-            database: 'blog', // Using your existing database
-            port: 3306
-        };
+        this.config = getDatabaseConfig().config; // Use configuration from database.config.js
     }
 
     /**
@@ -35,6 +30,10 @@ export class MySQLDatabaseService {
 
         } catch (error) {
             console.error('❌ MySQL connection failed:', error.message);
+            console.error('❌ Error code:', error.code);
+            console.error('❌ Error errno:', error.errno);
+            console.error('❌ Error sqlState:', error.sqlState);
+            console.error('❌ Full error:', error);
             throw error;
         }
     }

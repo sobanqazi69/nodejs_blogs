@@ -17,6 +17,9 @@ export class ContinuousScraper {
         this.totalScrapes = 0;
         this.consecutiveErrors = 0;
         this.config = continuousConfig;
+        this.startTime = new Date();
+        this.lastSuccessfulScrape = null;
+        this.statusInterval = null;
     }
 
     /**
@@ -44,8 +47,35 @@ export class ContinuousScraper {
                 }
             }, this.scrapeInterval);
 
-            // Show status every minute
+            // Show status every 5 minutes for real-time monitoring
             this.startStatusUpdates();
+
+            // Handle process exit gracefully
+            process.on('SIGINT', async () => {
+                console.log('\n🛑 Received SIGINT, stopping scraper gracefully...');
+                await this.stop();
+                process.exit(0);
+            });
+
+            process.on('SIGTERM', async () => {
+                console.log('\n🛑 Received SIGTERM, stopping scraper gracefully...');
+                await this.stop();
+                process.exit(0);
+            });
+
+            // Handle uncaught exceptions
+            process.on('uncaughtException', async (error) => {
+                console.error('❌ Uncaught Exception:', error.message);
+                console.error('🔄 Attempting to restart scraper...');
+                await this.restart();
+            });
+
+            // Handle unhandled promise rejections
+            process.on('unhandledRejection', async (reason, promise) => {
+                console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+                console.error('🔄 Attempting to restart scraper...');
+                await this.restart();
+            });
 
         } catch (error) {
             console.error('❌ Failed to start continuous scraper:', error.message);
@@ -62,6 +92,10 @@ export class ContinuousScraper {
         
         if (this.intervalId) {
             clearInterval(this.intervalId);
+        }
+        
+        if (this.statusInterval) {
+            clearInterval(this.statusInterval);
         }
         
         await this.db.close();
@@ -106,6 +140,7 @@ export class ContinuousScraper {
 
             // Reset error counter on successful scrape
             this.consecutiveErrors = 0;
+            this.lastSuccessfulScrape = new Date();
 
         } catch (error) {
             this.consecutiveErrors++;
@@ -125,47 +160,86 @@ export class ContinuousScraper {
      */
     async filterNewArticles(articles) {
         const newArticles = [];
+        let duplicateCount = 0;
+
+        console.log(`🔍 Checking ${articles.length} articles for duplicates...`);
 
         for (const article of articles) {
             try {
-                // Check if article already exists in database
+                // Check if article already exists in database using multiple methods
                 const exists = await this.checkArticleExists(article);
                 
                 if (!exists) {
                     newArticles.push(article);
+                } else {
+                    duplicateCount++;
                 }
             } catch (error) {
                 console.warn(`⚠️  Error checking article "${article.title}":`, error.message);
+                // If we can't check, include it to be safe
+                newArticles.push(article);
             }
         }
 
+        console.log(`📊 Duplicate check: ${newArticles.length} new, ${duplicateCount} duplicates`);
         return newArticles;
     }
 
     /**
-     * Check if article already exists in database
+     * Check if article already exists in database using multiple strategies
      */
     async checkArticleExists(article) {
         try {
-            // Check by URL (most reliable)
-            const existingByUrl = await this.db.searchArticles(article.url, 1);
-            if (existingByUrl.length > 0) {
-                return true;
+            // Strategy 1: Check by URL (most reliable)
+            if (article.url) {
+                const existingByUrl = await this.db.searchArticles(article.url, 1);
+                if (existingByUrl.length > 0) {
+                    return true;
+                }
             }
 
-            // Check by title and source (backup check)
-            const existingByTitle = await this.db.searchArticles(article.title, 10);
-            const duplicate = existingByTitle.find(existing => 
-                existing.title.toLowerCase() === article.title.toLowerCase() &&
-                existing.source === article.source
-            );
+            // Strategy 2: Check by title and source (backup check)
+            if (article.title) {
+                const existingByTitle = await this.db.searchArticles(article.title, 10);
+                const duplicate = existingByTitle.find(existing => 
+                    existing.title.toLowerCase() === article.title.toLowerCase() &&
+                    existing.source === article.source
+                );
+                if (duplicate) {
+                    return true;
+                }
+            }
 
-            return duplicate !== undefined;
+            // Strategy 3: Check by content similarity (for articles with similar content)
+            if (article.content && article.content.length > 50) {
+                const contentWords = article.content.toLowerCase().split(/\s+/).slice(0, 20);
+                const existingByContent = await this.db.searchArticles(contentWords.join(' '), 20);
+                const contentDuplicate = existingByContent.find(existing => 
+                    existing.source === article.source &&
+                    this.calculateSimilarity(existing.title.toLowerCase(), article.title.toLowerCase()) > 0.8
+                );
+                if (contentDuplicate) {
+                    return true;
+                }
+            }
+
+            return false;
 
         } catch (error) {
             console.warn(`⚠️  Error checking article existence:`, error.message);
             return false; // If we can't check, assume it's new
         }
+    }
+
+    /**
+     * Calculate similarity between two strings (simple Jaccard similarity)
+     */
+    calculateSimilarity(str1, str2) {
+        const words1 = new Set(str1.split(/\s+/));
+        const words2 = new Set(str2.split(/\s+/));
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        return intersection.size / union.size;
     }
 
     /**
@@ -200,19 +274,58 @@ export class ContinuousScraper {
     }
 
     /**
-     * Start status updates every minute
+     * Start status updates every 5 minutes for real-time monitoring
      */
     startStatusUpdates() {
-        setInterval(() => {
+        this.statusInterval = setInterval(() => {
             if (this.isRunning) {
-                const now = new Date();
-                const timeSinceLastScrape = this.lastScrapeTime 
-                    ? Math.round((now - this.lastScrapeTime) / 60000)
-                    : 'N/A';
-                
-                console.log(`\n📊 Status: ${now.toLocaleTimeString()} | Last scrape: ${timeSinceLastScrape} min ago | Total added: ${this.totalArticlesAdded}`);
+                this.showDetailedStatus();
             }
-        }, 60000); // Every minute
+        }, 5 * 60 * 1000); // Every 5 minutes
+    }
+
+    /**
+     * Show detailed status for 24/7 monitoring
+     */
+    showDetailedStatus() {
+        const now = new Date();
+        const uptime = Math.round((now - this.startTime) / 60000); // minutes
+        const timeSinceLastScrape = this.lastScrapeTime 
+            ? Math.round((now - this.lastScrapeTime) / 60000)
+            : 'N/A';
+        const timeSinceLastSuccess = this.lastSuccessfulScrape
+            ? Math.round((now - this.lastSuccessfulScrape) / 60000)
+            : 'N/A';
+
+        console.log('\n' + '='.repeat(70));
+        console.log('📊 REAL-TIME NEWS SCRAPER STATUS REPORT');
+        console.log('='.repeat(70));
+        console.log(`🕐 Current Time: ${now.toLocaleString()}`);
+        console.log(`⏱️  Uptime: ${uptime} minutes`);
+        console.log(`🔄 Total Scrapes: ${this.totalScrapes}`);
+        console.log(`📰 Total Articles Added: ${this.totalArticlesAdded}`);
+        console.log(`⏰ Last Scrape: ${timeSinceLastScrape} minutes ago`);
+        console.log(`✅ Last Success: ${timeSinceLastSuccess} minutes ago`);
+        console.log(`❌ Consecutive Errors: ${this.consecutiveErrors}`);
+        console.log(`🔄 Scrape Interval: ${this.scrapeInterval / 60000} minute(s)`);
+        console.log(`⏱️  Time Filter: Only articles < 5 minutes old`);
+        console.log(`🔍 Duplicate Check: Enhanced (URL + Title + Content)`);
+        console.log('='.repeat(70));
+    }
+
+    /**
+     * Restart the scraper (for error recovery)
+     */
+    async restart() {
+        console.log('🔄 Restarting scraper...');
+        try {
+            await this.stop();
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            await this.start();
+        } catch (error) {
+            console.error('❌ Failed to restart scraper:', error.message);
+            process.exit(1);
+        }
     }
 
     /**
