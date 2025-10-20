@@ -70,7 +70,7 @@ export const continuousConfig = {
     // Time-based filtering for real-time news
     timeFiltering: {
         // Only fetch articles published within last X minutes
-        maxArticleAgeMinutes: 5,
+        maxArticleAgeMinutes: 30, // More reasonable time window
         
         // Enable time-based filtering
         enabled: true,

@@ -65,7 +65,12 @@ export class NewsFetcher {
                 const filteredArticles = this.filterByTime(articles);
                 allArticles.push(...filteredArticles);
                 
-                console.log(`✅ Fetched ${filteredArticles.length} recent articles from ${source.name} (${articles.length - filteredArticles.length} old articles filtered out)`);
+                const filteredOut = articles.length - filteredArticles.length;
+                if (filteredOut > 0) {
+                    console.log(`✅ Fetched ${filteredArticles.length} recent articles from ${source.name} (${filteredOut} old articles filtered out)`);
+                } else {
+                    console.log(`✅ Fetched ${filteredArticles.length} articles from ${source.name}`);
+                }
             } catch (error) {
                 console.warn(`⚠️  Failed to fetch from ${source.name}:`, error.message);
                 failedSources.push(source.name);
@@ -118,15 +123,44 @@ export class NewsFetcher {
         const maxAgeMinutes = continuousConfig.timeFiltering.maxArticleAgeMinutes;
         const cutoffTime = new Date(Date.now() - (maxAgeMinutes * 60 * 1000));
         
+        let recentCount = 0;
+        let fallbackCount = 0;
+        let oldCount = 0;
+        
         const recentArticles = articles.filter(article => {
             if (!article.publishedDate) {
                 // If no published date, include it (fallback)
+                fallbackCount++;
                 return continuousConfig.timeFiltering.fallbackToAll;
             }
             
-            const articleDate = new Date(article.publishedDate);
-            return articleDate >= cutoffTime;
+            try {
+                const articleDate = new Date(article.publishedDate);
+                
+                // If date is invalid, include it (fallback)
+                if (isNaN(articleDate.getTime())) {
+                    fallbackCount++;
+                    return continuousConfig.timeFiltering.fallbackToAll;
+                }
+                
+                const isRecent = articleDate >= cutoffTime;
+                if (isRecent) {
+                    recentCount++;
+                } else {
+                    oldCount++;
+                }
+                return isRecent;
+            } catch (error) {
+                // If date parsing fails, include it (fallback)
+                fallbackCount++;
+                return continuousConfig.timeFiltering.fallbackToAll;
+            }
         });
+
+        // Debug logging
+        if (articles.length > 0) {
+            console.log(`   📅 Time filter: ${recentCount} recent, ${oldCount} old, ${fallbackCount} fallback`);
+        }
 
         return recentArticles;
     }
